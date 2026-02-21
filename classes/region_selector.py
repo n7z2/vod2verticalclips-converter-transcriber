@@ -1,0 +1,264 @@
+import cv2
+import numpy as np
+from .config import ProjectConfig, RegionConfig
+
+class RegionSelector:
+    def __init__(self, video_path: str, config: ProjectConfig = None):
+        self.video_path = video_path
+        self.config = config or ProjectConfig(video_path=video_path)
+        self.frame = None
+        self.display = None
+        self.mode = 'facecam'
+        self.facecam_rect = None
+        self.gameplay_rect = None
+        self.drawing = False
+        self.drag_start = None
+        self.drag_end = None
+        self.drag_type = None
+        self.selected_rect = None
+        self.history = []
+
+        # Pre-populate from config if provided
+        if config and config.facecam and config.facecam.width is not None:
+            self.facecam_rect = (
+                config.facecam.x,
+                config.facecam.y,
+                config.facecam.width,
+                config.facecam.height
+            )
+        if config and config.gameplay and config.gameplay.width is not None:
+            self.gameplay_rect = (
+                config.gameplay.x,
+                config.gameplay.y,
+                config.gameplay.width,
+                config.gameplay.height
+            )
+
+    def push_history(self, mode, rect):
+        self.history.append((mode, rect))
+
+    def undo(self):
+        if not self.history:
+            return
+        mode, rect = self.history.pop()
+        if mode == 'facecam':
+            self.facecam_rect = rect
+        else:
+            self.gameplay_rect = rect
+
+    def redraw_display(self):
+        if self.frame is None:
+            return
+        self.display = self.frame.copy()
+        h, w = self.display.shape[:2]
+
+        inst = [
+            "f: Facecam   g: Gameplay   s: Save   q: Quit   Ctrl+Z: Undo",
+            "Click inside to move   Click edges to resize"
+        ]
+        for i, line in enumerate(inst):
+            cv2.putText(self.display, line, (10, 30 + i*30),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
+
+        if self.facecam_rect:
+            x, y, w, h = self.facecam_rect
+            color = (255, 0, 0) if self.mode == 'facecam' else (128, 128, 255)
+            cv2.rectangle(self.display, (x, y), (x+w, y+h), color, 2)
+            cv2.putText(self.display, "Facecam", (x, y-5),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2)
+
+        if self.gameplay_rect:
+            x, y, w, h = self.gameplay_rect
+            color = (0, 0, 255) if self.mode == 'gameplay' else (255, 128, 128)
+            cv2.rectangle(self.display, (x, y), (x+w, y+h), color, 2)
+            cv2.putText(self.display, "Gameplay", (x, y-5),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2)
+
+        if self.selected_rect:
+            x, y, w, h = self.selected_rect
+            cv2.rectangle(self.display, (x, y), (x+w, y+h), (0, 255, 255), 3)
+
+        if self.drawing and self.drag_start and self.drag_end:
+            x1, y1 = self.drag_start
+            x2, y2 = self.drag_end
+            cv2.rectangle(self.display, (x1, y1), (x2, y2), (0, 255, 0), 2)
+            cv2.putText(self.display, f"{self.mode} selection", (10, 30),
+                        cv2.FONT_HERSHEY_SIMPLEX, 1, (0,255,0), 2)
+
+        cv2.imshow("Select Regions", self.display)
+
+    def get_rect_at(self, x, y):
+        rects = []
+        if self.facecam_rect:
+            rects.append(('facecam', self.facecam_rect))
+        if self.gameplay_rect:
+            rects.append(('gameplay', self.gameplay_rect))
+        for m, (rx, ry, rw, rh) in rects:
+            if rx <= x <= rx+rw and ry <= y <= ry+rh:
+                return m, (rx, ry, rw, rh)
+        return None, None
+
+    def get_resize_type(self, rect, x, y, threshold=10):
+        rx, ry, rw, rh = rect
+        left = abs(x - rx) <= threshold
+        right = abs(x - (rx+rw)) <= threshold
+        top = abs(y - ry) <= threshold
+        bottom = abs(y - (ry+rh)) <= threshold
+        if left and top: return 'tl'
+        if left and bottom: return 'bl'
+        if right and top: return 'tr'
+        if right and bottom: return 'br'
+        if left: return 'l'
+        if right: return 'r'
+        if top: return 't'
+        if bottom: return 'b'
+        return None
+
+    def mouse_callback(self, event, x, y, flags, param):
+        if event == cv2.EVENT_LBUTTONDOWN:
+            mode_hit, rect = self.get_rect_at(x, y)
+            if mode_hit == self.mode:
+                self.selected_rect = rect
+                resize_type = self.get_resize_type(rect, x, y)
+                if resize_type:
+                    self.drag_type = resize_type
+                    self.drag_start = (x, y)
+                    self.push_history(self.mode, rect)
+                else:
+                    self.drag_type = 'move'
+                    self.drag_start = (x, y)
+                    self.push_history(self.mode, rect)
+                self.drawing = False
+            else:
+                self.drawing = True
+                self.selected_rect = None
+                self.drag_start = (x, y)
+                self.drag_end = (x, y)
+                if self.mode == 'facecam' and self.facecam_rect:
+                    self.push_history('facecam', self.facecam_rect)
+                elif self.mode == 'gameplay' and self.gameplay_rect:
+                    self.push_history('gameplay', self.gameplay_rect)
+
+        elif event == cv2.EVENT_MOUSEMOVE:
+            if self.drawing:
+                self.drag_end = (x, y)
+            elif self.drag_type:
+                dx = x - self.drag_start[0]
+                dy = y - self.drag_start[1]
+                rx, ry, rw, rh = self.selected_rect
+                new_rect = list(self.selected_rect)
+                if self.drag_type == 'move':
+                    new_rect[0] = rx + dx
+                    new_rect[1] = ry + dy
+                elif self.drag_type == 'l':
+                    new_rect[0] = rx + dx
+                    new_rect[2] = rw - dx
+                elif self.drag_type == 'r':
+                    new_rect[2] = rw + dx
+                elif self.drag_type == 't':
+                    new_rect[1] = ry + dy
+                    new_rect[3] = rh - dy
+                elif self.drag_type == 'b':
+                    new_rect[3] = rh + dy
+                elif self.drag_type == 'tl':
+                    new_rect[0] = rx + dx
+                    new_rect[1] = ry + dy
+                    new_rect[2] = rw - dx
+                    new_rect[3] = rh - dy
+                elif self.drag_type == 'tr':
+                    new_rect[1] = ry + dy
+                    new_rect[2] = rw + dx
+                    new_rect[3] = rh - dy
+                elif self.drag_type == 'bl':
+                    new_rect[0] = rx + dx
+                    new_rect[2] = rw - dx
+                    new_rect[3] = rh + dy
+                elif self.drag_type == 'br':
+                    new_rect[2] = rw + dx
+                    new_rect[3] = rh + dy
+
+                if new_rect[2] < 5: new_rect[2] = 5
+                if new_rect[3] < 5: new_rect[3] = 5
+
+                if self.mode == 'facecam':
+                    self.facecam_rect = tuple(new_rect)
+                else:
+                    self.gameplay_rect = tuple(new_rect)
+                self.selected_rect = tuple(new_rect)
+                self.drag_start = (x, y)
+
+        elif event == cv2.EVENT_LBUTTONUP:
+            if self.drawing:
+                x1, y1 = self.drag_start
+                x2, y2 = x, y
+                if abs(x2-x1) > 5 and abs(y2-y1) > 5:
+                    rect = (min(x1,x2), min(y1,y2), abs(x2-x1), abs(y2-y1))
+                    if self.mode == 'facecam':
+                        self.facecam_rect = rect
+                    else:
+                        self.gameplay_rect = rect
+                self.drawing = False
+                self.drag_end = None
+            elif self.drag_type:
+                self.drag_type = None
+                self.drag_start = None
+                self.selected_rect = None
+
+    def run(self) -> ProjectConfig:
+        cap = cv2.VideoCapture(self.video_path)
+        ret, self.frame = cap.read()
+        cap.release()
+        if not ret:
+            raise RuntimeError("Could not read first frame from video.")
+
+        cv2.namedWindow("Select Regions")
+        cv2.setMouseCallback("Select Regions", self.mouse_callback)
+
+        print("\n=== Region Selection ===")
+        print("Press 'f' to switch to Facecam mode")
+        print("Press 'g' to switch to Gameplay mode")
+        print("Click and drag to draw new rectangle for current mode")
+        print("Click inside a rectangle to move it")
+        print("Click near an edge to resize")
+        print("Ctrl+Z to undo last change")
+        print("Press 's' to save and quit")
+        print("Press 'q' to quit without saving")
+
+        while True:
+            self.redraw_display()
+            key = cv2.waitKey(50) & 0xFF
+            if key == ord('f'):
+                self.mode = 'facecam'
+                print("Mode: Facecam")
+            elif key == ord('g'):
+                self.mode = 'gameplay'
+                print("Mode: Gameplay")
+            elif key == 26:  # Ctrl+Z
+                self.undo()
+            elif key == ord('s'):
+                if self.facecam_rect is None or self.gameplay_rect is None:
+                    print("Both regions must be defined before saving.")
+                    continue
+                # Preserve existing modes if present, otherwise default to 'fill'
+                facecam_mode = self.config.facecam.mode if self.config.facecam and self.config.facecam.mode else "fill"
+                gameplay_mode = self.config.gameplay.mode if self.config.gameplay and self.config.gameplay.mode else "fill"
+
+                self.config.facecam = RegionConfig(
+                    x=self.facecam_rect[0], y=self.facecam_rect[1],
+                    width=self.facecam_rect[2], height=self.facecam_rect[3],
+                    mode=facecam_mode
+                )
+                self.config.gameplay = RegionConfig(
+                    x=self.gameplay_rect[0], y=self.gameplay_rect[1],
+                    width=self.gameplay_rect[2], height=self.gameplay_rect[3],
+                    mode=gameplay_mode
+                )
+                self.config.save("regions.json")
+                print("Configuration saved to regions.json")
+                break
+            elif key == ord('q'):
+                print("Quit without saving.")
+                return None
+
+        cv2.destroyAllWindows()
+        return self.config

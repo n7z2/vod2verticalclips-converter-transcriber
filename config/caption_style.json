@@ -1,0 +1,13 @@
+{
+    "font": "Arial",
+    "fontsize": 86,
+    "color": "white",
+    "outline_color": "black",
+    "outline_width": 5,
+    "margin_bottom": 200,
+    "animation": "fade",
+    "fade_duration": 0.2,
+    "pause_threshold": 0.3,
+    "max_words_per_caption": 3,
+    "emoji_map": {}
+}
