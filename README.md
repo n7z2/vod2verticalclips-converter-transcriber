@@ -25,7 +25,7 @@ This tool automates the conversion of long VODs (videos on demand) into vertical
 
 | Flag         | Short          | Description   |
 |  ---         |     ---        |          ---  |
-| --timestamps | -t             | Path to timestamps file (default: timestamps.txt)   |
+| --timestamps      | -t             | Path to timestamps file (default: timestamps.txt)   |
 | --skip-cutting    |       | Skip segmentation; use the whole video as one clip     |
 | --game  | -g  | Game name for output folder/filenames (prompted if omitted) |
 | --output-dir  | -o  | Base output directory (can be a Windows path like /mnt/c/Users/name/Desktop/twitch). Default: ./output |
