@@ -46,6 +46,12 @@ class Composer:
 
     def compose_clip(self, input_path: Path, output_dir: Path) -> Path:
         """Process a single input clip and save the composed short. Returns output path."""
+        # Validate that region coordinates are complete
+        if None in (self.config.facecam.x, self.config.facecam.y, self.config.facecam.width, self.config.facecam.height):
+            raise ValueError("Facecam region coordinates are incomplete. Run region selection first.")
+        if None in (self.config.gameplay.x, self.config.gameplay.y, self.config.gameplay.width, self.config.gameplay.height):
+            raise ValueError("Gameplay region coordinates are incomplete. Run region selection first.")
+
         print(f"Composing {input_path} ...")
         clip = VideoFileClip(str(input_path))
         target = self.config.target

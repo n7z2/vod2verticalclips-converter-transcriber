@@ -24,7 +24,6 @@ class RegionConfig:
 @dataclass
 class ProjectConfig:
     """Complete project configuration."""
-    video_path: str = ""
     target: Optional[TargetConfig] = None
     facecam: Optional[RegionConfig] = None
     gameplay: Optional[RegionConfig] = None
@@ -36,11 +35,29 @@ class ProjectConfig:
 
     @classmethod
     def load(cls, path="regions.json"):
-        """Load configuration from JSON file."""
+        """Load configuration from JSON file. Missing sections become empty configs."""
         with open(path, "r") as f:
             data = json.load(f)
-        target = TargetConfig(**data.get("target", {}))
-        facecam = RegionConfig(**data.get("facecam", {}))
-        gameplay = RegionConfig(**data.get("gameplay", {}))
-        return cls(video_path=data.get("video_path", ""), target=target,
-                   facecam=facecam, gameplay=gameplay)
+
+        # Target
+        target_data = data.get("target")
+        if target_data is None:
+            target = TargetConfig()
+        else:
+            target = TargetConfig(**target_data)
+
+        # Facecam
+        facecam_data = data.get("facecam")
+        if facecam_data is None:
+            facecam = RegionConfig()
+        else:
+            facecam = RegionConfig(**facecam_data)
+
+        # Gameplay
+        gameplay_data = data.get("gameplay")
+        if gameplay_data is None:
+            gameplay = RegionConfig(mode="fill")
+        else:
+            gameplay = RegionConfig(**gameplay_data)
+
+        return cls(target=target, facecam=facecam, gameplay=gameplay)

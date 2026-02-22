@@ -3,9 +3,10 @@ import numpy as np
 from .config import ProjectConfig, RegionConfig
 
 class RegionSelector:
-    def __init__(self, video_path: str, config: ProjectConfig = None):
+    def __init__(self, video_path: str, config: ProjectConfig = None, save_path: str = "regions.json"):
         self.video_path = video_path
         self.config = config or ProjectConfig(video_path=video_path)
+        self.save_path = save_path
         self.frame = None
         self.display = None
         self.mode = 'facecam'
@@ -253,8 +254,8 @@ class RegionSelector:
                     width=self.gameplay_rect[2], height=self.gameplay_rect[3],
                     mode=gameplay_mode
                 )
-                self.config.save("regions.json")
-                print("Configuration saved to regions.json")
+                self.config.save(self.save_path)  # Save to the provided path
+                print(f"Configuration saved to {self.save_path}")
                 break
             elif key == ord('q'):
                 print("Quit without saving.")

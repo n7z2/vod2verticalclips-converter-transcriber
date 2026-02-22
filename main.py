@@ -1,15 +1,23 @@
 #!/usr/bin/env python3
 """
 Unified VOD to YouTube Shorts pipeline (Epics 1-4) with Windows output and caption integration.
-All configuration is read from regions.json.
+All configuration is read from regions.json – no defaults.
+SRT subtitles are automatically generated when --transcribe is used.
 """
 
 import sys
 import argparse
 import shutil
-import subprocess
 import json
 from pathlib import Path
+
+# Get the directory where the binary/script is located
+if getattr(sys, 'frozen', False):
+    # Running as bundled executable
+    BINARY_DIR = Path(sys.executable).parent
+else:
+    # Running as script
+    BINARY_DIR = Path(__file__).parent
 
 from classes.config import ProjectConfig, TargetConfig, RegionConfig
 from classes.segmenter import Segmenter
@@ -18,18 +26,159 @@ from classes.transcriber import Transcriber
 from classes.region_selector import RegionSelector
 from classes.utils import sanitize_filename, format_time, parse_timestamp, ensure_dir
 
-def create_default_config(video_path: Path) -> ProjectConfig:
-    """Create a default configuration with target dimensions but empty regions."""
+# ----------------------------------------------------------------------
+# SRT generation functions (embedded to avoid import issues in bundled binary)
+# ----------------------------------------------------------------------
+def format_srt_time(seconds: float) -> str:
+    """Convert seconds to SRT time format: HH:MM:SS,mmm"""
+    hours = int(seconds // 3600)
+    minutes = int((seconds % 3600) // 60)
+    secs = seconds % 60
+    millis = int((secs - int(secs)) * 1000)
+    return f"{hours:02d}:{minutes:02d}:{int(secs):02d},{millis:03d}"
+
+def group_words_for_srt(caption_data, pause_threshold=0.3, max_words=5):
+    """Group words into subtitle lines based on pauses."""
+    all_words = []
+    for seg in caption_data['segments']:
+        if 'words' in seg and seg['words']:
+            all_words.extend(seg['words'])
+        else:
+            all_words.append({'word': seg['text'], 'start': seg['start'], 'end': seg['end']})
+    groups = []
+    current = []
+    for w in all_words:
+        if not current:
+            current.append(w)
+        else:
+            gap = w['start'] - current[-1]['end']
+            if gap > pause_threshold or len(current) >= max_words:
+                groups.append(current)
+                current = [w]
+            else:
+                current.append(w)
+    if current:
+        groups.append(current)
+    return groups
+
+def write_srt(groups, output_path):
+    """Write groups to SRT file."""
+    with open(output_path, 'w', encoding='utf-8') as f:
+        for idx, group in enumerate(groups, 1):
+            text = ' '.join(w['word'] for w in group).strip()
+            if not text:
+                continue
+            start = group[0]['start']
+            end = group[-1]['end']
+            f.write(f"{idx}\n")
+            f.write(f"{format_srt_time(start)} --> {format_srt_time(end)}\n")
+            f.write(f"{text}\n\n")
+
+def generate_srt_from_json(captions_json_path, output_dir=None):
+    """
+    Generate an SRT file from a captions JSON file.
+    If output_dir is None, saves next to the JSON file.
+    Returns path to the generated SRT.
+    """
+    input_path = Path(captions_json_path)
+    if not input_path.exists():
+        raise FileNotFoundError(f"File not found: {input_path}")
+
+    with open(input_path, 'r') as f:
+        caption_data = json.load(f)
+
+    groups = group_words_for_srt(caption_data, pause_threshold=0.3, max_words=5)
+
+    if output_dir:
+        out_dir = Path(output_dir)
+        out_dir.mkdir(parents=True, exist_ok=True)
+        out_path = out_dir / f"{input_path.stem}.srt"
+    else:
+        out_path = input_path.with_suffix(".srt")
+
+    write_srt(groups, out_path)
+    print(f"SRT saved to {out_path}")
+    return out_path
+
+# ----------------------------------------------------------------------
+
+def validate_and_load_regions(regions_file: Path) -> ProjectConfig:
+    """
+    Load regions.json and validate that all required fields are present.
+    Exits with error if anything is missing.
+    """
+    if not regions_file.exists():
+        print(f"ERROR: {regions_file} not found.")
+        print("Please run the region selection GUI first to create it.")
+        sys.exit(1)
+
+    try:
+        with open(regions_file, 'r') as f:
+            data = json.load(f)
+    except json.JSONDecodeError as e:
+        print(f"ERROR: {regions_file} is not valid JSON: {e}")
+        sys.exit(1)
+
+    # Validate target section
+    if 'target' not in data:
+        print("ERROR: Missing 'target' section in regions.json")
+        sys.exit(1)
+    target_data = data['target']
+    required_target = ['width', 'height', 'facecam_height', 'gameplay_height']
+    for field in required_target:
+        if field not in target_data:
+            print(f"ERROR: Missing '{field}' in target section of regions.json")
+            sys.exit(1)
     target = TargetConfig(
-        width=1080,
-        height=1920,
-        facecam_height=768,
-        gameplay_height=1152
+        width=target_data['width'],
+        height=target_data['height'],
+        facecam_height=target_data['facecam_height'],
+        gameplay_height=target_data['gameplay_height']
     )
-    facecam = RegionConfig()   # empty, mode=None
-    gameplay = RegionConfig()  # empty, mode=None
-    return ProjectConfig(video_path=str(video_path), target=target,
-                         facecam=facecam, gameplay=gameplay)
+
+    # Validate facecam section
+    if 'facecam' not in data:
+        print("ERROR: Missing 'facecam' section in regions.json")
+        sys.exit(1)
+    facecam_data = data['facecam']
+    required_facecam = ['x', 'y', 'width', 'height', 'mode']
+    for field in required_facecam:
+        if field not in facecam_data:
+            print(f"ERROR: Missing '{field}' in facecam section of regions.json")
+            sys.exit(1)
+    facecam = RegionConfig(
+        x=facecam_data['x'],
+        y=facecam_data['y'],
+        width=facecam_data['width'],
+        height=facecam_data['height'],
+        mode=facecam_data['mode']
+    )
+
+    # Validate gameplay section
+    if 'gameplay' not in data:
+        print("ERROR: Missing 'gameplay' section in regions.json")
+        sys.exit(1)
+    gameplay_data = data['gameplay']
+    required_gameplay = ['x', 'y', 'width', 'height', 'mode']
+    for field in required_gameplay:
+        if field not in gameplay_data:
+            print(f"ERROR: Missing '{field}' in gameplay section of regions.json")
+            sys.exit(1)
+    gameplay = RegionConfig(
+        x=gameplay_data['x'],
+        y=gameplay_data['y'],
+        width=gameplay_data['width'],
+        height=gameplay_data['height'],
+        mode=gameplay_data['mode']
+    )
+
+    # video_path is optional; we ignore it
+    return ProjectConfig(
+        video_path=data.get('video_path', ''),
+        target=target,
+        facecam=facecam,
+        gameplay=gameplay
+    )
 
 def run_with_args(args):
     """Run the pipeline with parsed arguments (from command line)."""
@@ -45,11 +194,18 @@ def run_with_args(args):
 
     base_output = Path(args.output_dir).expanduser().resolve()
     game_output = ensure_dir(base_output / game_safe)
-    print(f"Output will be saved to: {game_output}")
+    print(f"Final output will be saved to: {game_output}")
+
+    # ----- Create temporary working directory in current location -----
+    temp_root = Path.cwd() / "_temp"
+    if temp_root.exists():
+        shutil.rmtree(temp_root)
+    clips_folder = ensure_dir(temp_root / "clips")
+    shorts_folder = ensure_dir(temp_root / "shorts")
+    captions_folder = ensure_dir(temp_root / "captions")
+    print(f"Temporary files will be stored in: {temp_root}")
 
     # ----- Step 1: Segmentation -----
-    clips_folder = Path("clips")
-    ensure_dir(clips_folder)
     generated_clips = []  # will hold paths of clips from this run
 
     if args.skip_cutting:
@@ -70,14 +226,15 @@ def run_with_args(args):
                 shutil.copy2(video_path, dest)
             generated_clips = [dest]
 
-    # ----- Step 2: Region configuration -----
-    regions_file = Path("regions.json")
+    # ----- Step 2: Region configuration (interactive) -----
+    regions_file = BINARY_DIR / "regions.json"
     config = None
+
     if regions_file.exists():
-        use_existing = getattr(args, 'use_existing_regions', True)
-        if use_existing:
+        ans = input("regions.json found. Use existing regions? (y/n): ").strip().lower()
+        if ans == 'y':
             try:
-                config = ProjectConfig.load(str(regions_file))
+                config = validate_and_load_regions(regions_file)
                 print("Loaded existing regions.json")
             except Exception as e:
                 print(f"Error loading regions.json: {e}")
@@ -86,48 +243,50 @@ def run_with_args(args):
             config = None
 
     if config is None:
+        # Launch GUI to create new regions
         print("Launching region selection GUI.")
         first_clip = clips_folder / "clip_000.mp4"
         if not first_clip.exists():
-            raise RuntimeError("No clip found for region selection.")
-        selector = RegionSelector(str(first_clip))
+            print("No clip found for region selection. Exiting.")
+            sys.exit(1)
+
+        # Pass the binary directory to the selector so it saves there
+        selector = RegionSelector(str(first_clip), save_path=str(regions_file))
         config = selector.run()
         if config is None:
-            raise RuntimeError("Region selection cancelled.")
-    else:
-        print("Using existing region coordinates from regions.json.")
+            print("Region selection cancelled. Exiting.")
+            sys.exit(1)
+
+        # Reload the config from the saved file to ensure consistency
+        print("Reloading regions from saved file...")
+        config = validate_and_load_regions(regions_file)
 
     # ----- Step 3: Composition (using only the clips we just generated) -----
-    shorts_folder = Path("shorts")
-    ensure_dir(shorts_folder)
     composer = Composer(config)
     generated_shorts = composer.compose_all(input_paths=generated_clips, output_dir=str(shorts_folder))
 
-    # ----- Step 4: Transcription -----
+    # ----- Step 4: Transcription and automatic SRT generation -----
     if args.transcribe:
+        # Transcribe
         transcriber = Transcriber(model_size=args.model, device=args.device)
-        transcriber.transcribe_all(videos_dir=str(shorts_folder), output_dir="captions")
+        transcriber.transcribe_all(videos_dir=str(shorts_folder), output_dir=str(captions_folder))
 
-    # ----- Step 5: SRT generation -----
-    if args.srt:
-        if not args.transcribe:
-            print("Warning: --srt requires --transcribe to generate captions first. Skipping SRT generation.")
+        # Automatically generate SRT files from the transcribed JSON
+        caption_files = list(captions_folder.glob("*_captions.json"))
+        if not caption_files:
+            print("No caption JSON files found (unexpected after transcription).")
         else:
-            # UPDATED PATH: json2srt.py is now in tools/
-            srt_script = Path(__file__).parent / "tools" / "json2srt.py"
-            if not srt_script.exists():
-                print("json2srt.py not found in tools/. Please ensure it's there.")
-            else:
-                caption_files = list(Path("captions").glob("*_captions.json"))
-                if not caption_files:
-                    print("No caption JSON files found.")
-                else:
-                    for cap_json in caption_files:
-                        cmd = [sys.executable, str(srt_script), str(cap_json)]
-                        print(f"Generating SRT for {cap_json}...")
-                        subprocess.run(cmd, check=False)
+            for cap_json in caption_files:
+                print(f"Generating SRT for {cap_json}...")
+                try:
+                    generate_srt_from_json(str(cap_json), output_dir=str(captions_folder))
+                except Exception as e:
+                    print(f"SRT generation failed for {cap_json}: {e}")
 
-    # ----- Step 6: Organize output to Windows folder -----
+    # ----- Step 5: Prepare final output folders -----
+    game_clips_folder = ensure_dir(game_output / "clips")
+
+    # ----- Step 6: Copy final outputs to game folder -----
     # Read timestamps for naming (if available)
     timestamps_list = []
     if not args.skip_cutting:
@@ -144,8 +303,11 @@ def run_with_args(args):
     while len(timestamps_list) < len(generated_shorts):
         timestamps_list.append(("??", "??"))
 
+    # Determine model suffix for filenames if transcription was used
+    model_suffix = f"_{args.model}" if args.transcribe else ""
+
     for idx, short_path in enumerate(generated_shorts):
-        # Generate filename
+        # Generate base filename
         if idx < len(timestamps_list) and timestamps_list[idx] != ("??", "??"):
             start_str, end_str = timestamps_list[idx]
             try:
@@ -157,50 +319,30 @@ def run_with_args(args):
         else:
             time_part = f"clip{idx:03d}"
 
-        base_name = f"{game_safe}_{idx:03d}_{time_part}"
+        base_name = f"{game_safe}_{idx:03d}_{time_part}{model_suffix}"
+
+        # Copy the short video
         dest_video = game_output / f"{base_name}.mp4"
         shutil.copy2(short_path, dest_video)
-        print(f"Copied {short_path} -> {dest_video}")
+        print(f"Copied short {short_path} -> {dest_video}")
 
-        # If caption flag is set, run caption_overlay.py
-        if args.caption:
-            # UPDATED PATH: caption_overlay.py is now in tools/
-            cap_script = Path(__file__).parent / "tools" / "caption_overlay.py"
-            if cap_script.exists():
-                cap_json = Path("captions") / f"{short_path.stem}_captions.json"
-                if cap_json.exists():
-                    # UPDATED PATH: caption_style.json is now in config/ (fallback to root)
-                    style_file = Path(__file__).parent / "config" / "caption_style.json"
-                    if not style_file.exists():
-                        style_file = Path("caption_style.json")  # fallback
-                    cmd = [
-                        sys.executable,
-                        str(cap_script),
-                        str(short_path),
-                        str(cap_json),
-                        str(style_file)
-                    ]
-                    print(f"Running caption overlay for {short_path}...")
-                    result = subprocess.run(cmd, capture_output=True, text=True)
-                    if result.returncode == 0:
-                        captioned = Path("final") / f"{short_path.stem}_captioned.mp4"
-                        if captioned.exists():
-                            captioned_dest = game_output / (base_name + "_captioned.mp4")
-                            shutil.copy2(captioned, captioned_dest)
-                            print(f"Copied captioned version to {captioned_dest}")
-                    else:
-                        print(f"Caption overlay failed: {result.stderr}")
-                else:
-                    print(f"No captions JSON found for {short_path}, skipping caption overlay.")
-            else:
-                print("caption_overlay.py not found in tools/, skipping caption generation.")
+        # Copy the original clip (from generated_clips) to clips subfolder
+        if idx < len(generated_clips):
+            clip_path = generated_clips[idx]
+            clip_dest = game_clips_folder / f"{base_name}.mp4"
+            shutil.copy2(clip_path, clip_dest)
+            print(f"Copied clip {clip_path} -> {clip_dest}")
 
-        # Copy corresponding SRT file if it exists
-        srt_candidate = Path("captions") / f"{short_path.stem}_captions.srt"
+        # Copy corresponding SRT file if it exists (generated from transcription)
+        srt_candidate = captions_folder / f"{short_path.stem}_captions.srt"
         if srt_candidate.exists():
             srt_dest = game_output / (base_name + ".srt")
             shutil.copy2(srt_candidate, srt_dest)
             print(f"Copied SRT to {srt_dest}")
+
+    # ----- Step 7: Clean up temporary directory -----
+    shutil.rmtree(temp_root)
+    print(f"Removed temporary directory: {temp_root}")
 
     print("\n✅ All done! Files are in:", game_output)
 
@@ -211,13 +353,11 @@ def main():
     parser.add_argument("--skip-cutting", action="store_true", help="Skip timestamp cutting and use original video directly")
     parser.add_argument("--game", "-g", help="Game name (for folder and filenames). If omitted, will prompt.")
     parser.add_argument("--output-dir", "-o", default="./output", help="Base output directory (can be Windows path like /mnt/c/Users/name/Desktop/twitch). Default: ./output")
-    parser.add_argument("--caption", "-c", action="store_true", help="Generate captioned version using caption_overlay.py (if available)")
-    parser.add_argument("--transcribe", action="store_true", help="Run transcription after composition")
-    parser.add_argument("--srt", action="store_true", help="Generate SRT subtitle files from captions (requires --transcribe)")
+    parser.add_argument("--transcribe", action="store_true", help="Run transcription and generate SRT subtitles")
     parser.add_argument("--model", default="base", help="Whisper model size (tiny/base/small/medium/large)")
     parser.add_argument("--device", default="cpu", choices=["cpu", "cuda"], help="Device for transcription")
-    parser.add_argument("--use-existing-regions", action="store_true", default=True, help="Use existing regions.json if available")
     args = parser.parse_args()
+
     run_with_args(args)
 
 if __name__ == "__main__":
