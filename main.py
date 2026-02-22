@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """
-Unified VOD to YouTube Shorts pipeline (Epics 1-4) with Windows output and caption integration.
-All configuration is read from regions.json – no defaults.
+Unified VOD to YouTube Shorts pipeline with Windows output and caption integration.
 SRT subtitles are automatically generated when --transcribe is used.
 """
 
@@ -172,13 +171,8 @@ def validate_and_load_regions(regions_file: Path) -> ProjectConfig:
         mode=gameplay_data['mode']
     )
 
-    # video_path is optional; we ignore it
-    return ProjectConfig(
-        video_path=data.get('video_path', ''),
-        target=target,
-        facecam=facecam,
-        gameplay=gameplay
-    )
+    # Return ProjectConfig WITHOUT video_path (video_path is no longer used)
+    return ProjectConfig(target=target, facecam=facecam, gameplay=gameplay)
 
 def run_with_args(args):
     """Run the pipeline with parsed arguments (from command line)."""

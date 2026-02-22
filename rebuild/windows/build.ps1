@@ -8,7 +8,7 @@ $ProjectRoot = Resolve-Path "$ScriptPath\..\.."
 Set-Location $ProjectRoot
 Write-Host "Building from $ProjectRoot"
 
-pyinstaller --onefile `
+python -m PyInstaller --onefile `
   --name vod2shorts-windows.exe `
   --collect-all moviepy `
   --collect-all imageio `
@@ -28,7 +28,8 @@ pyinstaller --onefile `
   --hidden-import numpy `
   main.py
 
-  if ($LASTEXITCODE -eq 0) {
+# Check if build succeeded
+if ($LASTEXITCODE -eq 0) {
     Write-Host "Build successful. Cleaning up temporary files..."
     Remove-Item -Recurse -Force build, *.spec -ErrorAction SilentlyContinue
 } else {

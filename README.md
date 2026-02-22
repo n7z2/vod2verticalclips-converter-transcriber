@@ -5,6 +5,7 @@
 [![GitHub stars](https://img.shields.io/github/stars/n7z2/vod2verticalclips-converter-transcriber?style=social)](https://github.com/n7z2/vod2verticalclips-converter-transcriber/stargazers)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
+![Static Badge](https://img.shields.io/badge/:badgeContent?labelColor=grey&color=red&link=https%3A%2F%2Fbuymeacoffee.com%2Fn7z2)
 
 
 
@@ -203,5 +204,3 @@ MIT
 ---
 
 ⭐ If you find this tool useful, please consider giving it a star on GitHub! ⭐
-☕ (Buy me [Coffee](https://buymeacoffee.com/n7z2))
-
