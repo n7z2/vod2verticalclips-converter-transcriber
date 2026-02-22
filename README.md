@@ -58,26 +58,23 @@ cd rebuild/windows && ./build.ps1
 
 This guide explains the step‑by‑step process of converting a long VOD into vertical YouTube Shorts. The pipeline handles everything from cutting segments to generating subtitles.
 
-#### Ready‑to‑run binaries
+**Ready‑to‑run binaries**
 Pre‑compiled executables for Linux and Windows are available on the Releases page.
 Just download, place in a folder, and run!
 
-#### Prepare Your Files
+**Prepare Your Files**
 Input Video
 Place your source VOD file somewhere accessible (e.g., videos/cs2.mp4)
 
-#### Timestamps File (Optional)
+**Timestamps File (Optional)**
 Edit the timestamps.txt listing the segments you want to extract. Each line should contain start,end in one of these formats:
 
 Seconds: 0,10
-
 MM:SS: 01:30,02:45
-
 HH:MM:SS: 01:02:15,01:02:45
-
 Lines starting with # are ignored.
 
-example 
+**example** 
 
 ```bash
 0,10
@@ -116,31 +113,31 @@ The main script is main.py (or the compiled executable vod2shorts-linux / vod2sh
 
 ## Example Commands
 
-### Basic – cut with timestamps and save to local folder
+#### Basic – cut with timestamps and save to local folder
 
 ```bash
 ./vod2shorts-linux videos/cs2.mp4 --game CS2
 ```
 
-### Use whole video, save to Windows folder from WSL2, add transcription (SRT automatically generated)
+#### Use whole video, save to Windows folder from WSL2, add transcription (SRT automatically generated)
 
 ```bash
 ./vod2shorts-linux videos/cs2.mp4 --skip-cutting --game CS2 --output-dir /mnt/c/Users/User/Desktop/twitch --transcribe
 ```
 
-### Transcribe with a larger model for better accuracy
+#### Transcribe with a larger model for better accuracy
 
 ```bash
 ./vod2shorts-linux videos/cs2.mp4 --game CS2 --transcribe --model large
 ```
 
-### Use GPU acceleration for faster transcription
+#### Use GPU acceleration for faster transcription
 
 ```bash
 ./vod2shorts-linux videos/cs2.mp4 --game CS2 --transcribe --model medium --device cuda
 ```
 
-### Using the pre‑compiled binary on Windows
+#### Using the pre‑compiled binary on Windows
 
 ```bash
 ./vod2shorts-windows.exe D:\Videos\cs2.mp4 --game CS2 --transcribe --model base
