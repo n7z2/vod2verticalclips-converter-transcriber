@@ -69,10 +69,12 @@ Place your source VOD file somewhere accessible (e.g., videos/cs2.mp4)
 **Timestamps File (Optional)**
 Edit the timestamps.txt listing the segments you want to extract. Each line should contain start,end in one of these formats:
 
+```bash
 Seconds: 0,10
 MM:SS: 01:30,02:45
 HH:MM:SS: 01:02:15,01:02:45
 Lines starting with # are ignored.
+```
 
 **example** 
 
@@ -194,7 +196,7 @@ VRAM values are approximate and may vary. On CPU, multiply by ~0.5–1 GB for sy
 
 ## Contributing
 
-Contributions are welcome! Feel free to open issues or submit pull requests.
+Feel free to open issues
 
 ## License
 
