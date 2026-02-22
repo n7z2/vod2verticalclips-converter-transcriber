@@ -52,7 +52,7 @@ Windows
 git clone https://github.com/n7z2/vod2shorts.git
 cd vod2shorts
 python -m venv venv
-Scripts\Activate.ps1
+venv\Scripts\activate.ps1
 pip install -r requirements.txt
 cd rebuild/windows && ./build.ps1
 ```
@@ -106,11 +106,9 @@ The main script is main.py (or the compiled executable vod2shorts-linux / vod2sh
 |------|-------|-------------|
 | `--timestamps` | `-t` | Path to timestamps file (default: `timestamps.txt`) |
 | `--skip-cutting` | | Skip segmentation; use the whole video as one clip |
-| `--game` | `-g` | Game name for output folder/filenames (prompted if omitted) |
 | `--output-dir` | `-o` | Base output directory (e.g. `/mnt/c/Users/name/Desktop/twitch`). Default: `./output` |
 | `--transcribe` | | Run transcription and generate SRT subtitles |
 | `--model` | | Whisper model size: `tiny`, `base`, `small`, `medium`, `large` (default: `base`) |
-| `--device` | | Device for transcription: `cpu` or `cuda` (default: `cpu`) |
 
 ---
 
@@ -175,6 +173,21 @@ The --model flag lets you choose which Whisper model to use for transcription. L
 | large  | 1550 M     | ~9.0 GB              | 1x             |
 
 VRAM values are approximate and may vary. On CPU, multiply by ~0.5–1 GB for system RAM.
+
+If you have a CUDA supported Nvida GPU with CUDA installed, the transcriber will use CUDA rather than your CPU which can be 4-5x faster. 
+
+Linux installation
+
+```bash
+pip install nvidia-cublas-cu12 nvidia-cudnn-cu12
+
+export LD_LIBRARY_PATH=`python3 -c 'import os; import nvidia.cublas.lib; import nvidia.cudnn.lib; print(os.path.dirname(nvidia.cublas.lib.__file__) + ":" + os.path.dirname(nvidia.cudnn.lib.__file__))'`
+```
+
+Windows installation 
+
+Download and install the [CUDA Toolkit 12.x](https://developer.nvidia.com/cuda-downloads)
+Download and install  [cuDNN for CUDA 12](https://developer.nvidia.com/cuda-downloads)
 
 **CUDA Requirements**:
 - NVIDIA GPU with compute capability 5.0 or higher.

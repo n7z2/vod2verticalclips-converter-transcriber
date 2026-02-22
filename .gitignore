@@ -51,3 +51,4 @@ temp-*.m4a
 *.log
 *.mp4.json
 instructions.md
+dist/*
