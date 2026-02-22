@@ -52,5 +52,3 @@ temp-*.m4a
 *.mp4.json
 instructions.md
 dist/*
-
-.gitignore
