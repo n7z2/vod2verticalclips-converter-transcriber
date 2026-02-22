@@ -1,4 +1,4 @@
-# 🎬 VOD to YouTube Shorts Pipeline
+# 🎬 VOD to Short form content Pipeline
 
 <div align="center">
 
@@ -8,7 +8,7 @@
 
 
 
-**Automatically convert long VODs into vertical YouTube Shorts – with AI‑powered subtitles!**
+**Automatically convert long VODs into vertical Short Form Content – with AI‑powered subtitles!**
 
 </div>
 
