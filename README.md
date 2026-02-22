@@ -74,11 +74,9 @@ Seconds: 0,10
 MM:SS: 01:30,02:45
 HH:MM:SS: 01:02:15,01:02:45
 Lines starting with # are ignored.
-```
 
-**example** 
+Example
 
-```bash
 0,10
 15.5,25.8
 01:00,01:30
