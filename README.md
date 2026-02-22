@@ -11,6 +11,8 @@
 
 **Automatically convert long VODs into vertical Short Form Content – with AI‑powered subtitles!**
 
+⭐ If you find this tool useful, please consider giving it a star on GitHub! ⭐
+
 </div>
 
 ---
@@ -193,14 +195,8 @@ VRAM values are approximate and may vary. On CPU, multiply by ~0.5–1 GB for sy
 - For native Windows builds, download the `.exe` from Releases – no Python or WSL required.
 - The region selection GUI uses OpenCV; on Windows it will work out of the box. In WSL2, ensure you have an X server (like VcXsrv) or use WSLg (Windows 11).
 
-## Contributing
-
-Feel free to open issues
+---
 
 ## License
 
 MIT
-
----
-
-⭐ If you find this tool useful, please consider giving it a star on GitHub! ⭐
