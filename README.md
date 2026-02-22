@@ -28,9 +28,9 @@ This tool automates the conversion of long VODs (videos on demand) into vertical
 
 ---
 
-## 🚀 Installation and Rebuild bianry
+## 🚀 From source (for developers)
 
-### From source (for developers)
+If you make any code changes you can rebuild the binaries using the windows/linux script in the rebuild folder, the new binary will be located in the dist folder.
 
 ```bash
 git clone https://github.com/n7z2/vod2shorts.git
@@ -38,13 +38,17 @@ cd vod2shorts
 python -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
+cd rebuild/linux && ./build.sh
 ```
 
-### Rebuild binary (for developers)
-
-If you make any code changes you can rebuild the binaries using the windows/linux script in the rebuild folder, the new binary will be located in the dist folder.
-
----
+```Powershell
+git clone https://github.com/n7z2/vod2shorts.git
+cd vod2shorts
+python -m venv venv
+Scripts\Activate.ps1
+pip install -r requirements.txt
+cd rebuild/windows && ./build.ps1
+```
 
 ## Usage
 
@@ -92,7 +96,7 @@ The main script is main.py (or the compiled executable vod2shorts-linux / vod2sh
 
 ---
 
-### Command line arugments
+### Command line arguments
 
 | Flag | Short | Description |
 |------|-------|-------------|
