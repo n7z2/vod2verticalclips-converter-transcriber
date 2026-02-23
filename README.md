@@ -14,6 +14,11 @@
 ⭐ If you find this tool useful, please consider giving it a star on GitHub! ⭐
 
 </div>
+---
+ 
+## 🖱️ Tutorial
+
+[![Watch the video](https://img.youtube.com/vi/NzAe56o0Cc4/hqdefault.jpg)](https://youtu.be/NzAe56o0Cc4)
 
 ---
 
