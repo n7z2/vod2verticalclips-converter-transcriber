@@ -1,8 +1,19 @@
-"""Configuration dataclasses for the project. No hardcoded defaults."""
+"""Configuration dataclasses for the project."""
 
 from dataclasses import dataclass, asdict
 import json
 from typing import Optional
+
+def _filter_none(d: dict) -> dict:
+    """Recursively remove keys with None values."""
+    new = {}
+    for k, v in d.items():
+        if v is None:
+            continue
+        if isinstance(v, dict):
+            v = _filter_none(v)
+        new[k] = v
+    return new
 
 @dataclass
 class TargetConfig:
@@ -27,11 +38,14 @@ class ProjectConfig:
     target: Optional[TargetConfig] = None
     facecam: Optional[RegionConfig] = None
     gameplay: Optional[RegionConfig] = None
+    gameplay_only: Optional[RegionConfig] = None  # New field for no‑facecam mode
 
     def save(self, path="regions.json"):
-        """Save configuration to JSON file."""
+        """Save configuration to JSON file, omitting None values."""
+        data = asdict(self)
+        filtered = _filter_none(data)
         with open(path, "w") as f:
-            json.dump(asdict(self), f, indent=2)
+            json.dump(filtered, f, indent=2)
 
     @classmethod
     def load(cls, path="regions.json"):
@@ -48,16 +62,14 @@ class ProjectConfig:
 
         # Facecam
         facecam_data = data.get("facecam")
-        if facecam_data is None:
-            facecam = RegionConfig()
-        else:
-            facecam = RegionConfig(**facecam_data)
+        facecam = RegionConfig(**facecam_data) if facecam_data else None
 
         # Gameplay
         gameplay_data = data.get("gameplay")
-        if gameplay_data is None:
-            gameplay = RegionConfig(mode="fill")
-        else:
-            gameplay = RegionConfig(**gameplay_data)
+        gameplay = RegionConfig(**gameplay_data) if gameplay_data else None
 
-        return cls(target=target, facecam=facecam, gameplay=gameplay)
+        # Gameplay only (no‑facecam mode)
+        gameplay_only_data = data.get("gameplay_only")
+        gameplay_only = RegionConfig(**gameplay_only_data) if gameplay_only_data else None
+
+        return cls(target=target, facecam=facecam, gameplay=gameplay, gameplay_only=gameplay_only)

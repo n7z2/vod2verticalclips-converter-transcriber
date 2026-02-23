@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """
 Unified VOD to YouTube Shorts pipeline.
-SRT subtitles are automatically generated when --transcribe is used.
 """
 
 import sys
@@ -94,10 +93,12 @@ def generate_srt_from_json(captions_json_path, output_dir=None):
 # ----------------------------------------------------------------------
 
 def validate_and_load_regions(regions_file: Path) -> ProjectConfig:
+    """
+    Load regions.json and validate that all required fields are present.
+    For no‑facecam mode, gameplay may be missing if gameplay_only exists.
+    """
     if not regions_file.exists():
-        print(f"ERROR: {regions_file} not found.")
-        print("Please run the region selection GUI first to create it.")
-        sys.exit(1)
+        return None  # Instead of exiting, return None to indicate no file
 
     try:
         with open(regions_file, 'r') as f:
@@ -106,16 +107,21 @@ def validate_and_load_regions(regions_file: Path) -> ProjectConfig:
         print(f"ERROR: {regions_file} is not valid JSON: {e}")
         sys.exit(1)
 
-    # Validate target
-    if 'target' not in data:
-        print("ERROR: Missing 'target' section in regions.json")
+    # Validate target section (always required if present, but if file exists it should be there)
+    target_data = data.get("target")
+    if target_data is None:
+        print("ERROR: Missing or null 'target' section in regions.json")
         sys.exit(1)
-    target_data = data['target']
+    if not isinstance(target_data, dict):
+        print(f"ERROR: 'target' section must be a dictionary, got {type(target_data)}")
+        sys.exit(1)
+
     required_target = ['width', 'height', 'facecam_height', 'gameplay_height']
     for field in required_target:
         if field not in target_data:
             print(f"ERROR: Missing '{field}' in target section of regions.json")
             sys.exit(1)
+
     target = TargetConfig(
         width=target_data['width'],
         height=target_data['height'],
@@ -123,43 +129,60 @@ def validate_and_load_regions(regions_file: Path) -> ProjectConfig:
         gameplay_height=target_data['gameplay_height']
     )
 
-    # Validate facecam
-    if 'facecam' not in data:
-        print("ERROR: Missing 'facecam' section in regions.json")
-        sys.exit(1)
-    facecam_data = data['facecam']
-    required_facecam = ['x', 'y', 'width', 'height', 'mode']
-    for field in required_facecam:
-        if field not in facecam_data:
-            print(f"ERROR: Missing '{field}' in facecam section of regions.json")
+    # Facecam is optional
+    facecam = None
+    if 'facecam' in data and data['facecam'] is not None:
+        facecam_data = data['facecam']
+        if not isinstance(facecam_data, dict):
+            print(f"ERROR: 'facecam' section must be a dictionary, got {type(facecam_data)}")
             sys.exit(1)
-    facecam = RegionConfig(
-        x=facecam_data['x'],
-        y=facecam_data['y'],
-        width=facecam_data['width'],
-        height=facecam_data['height'],
-        mode=facecam_data['mode']
-    )
+        required_facecam = ['x', 'y', 'width', 'height', 'mode']
+        for field in required_facecam:
+            if field not in facecam_data:
+                print(f"ERROR: Missing '{field}' in facecam section of regions.json")
+                sys.exit(1)
+        facecam = RegionConfig(
+            x=facecam_data['x'],
+            y=facecam_data['y'],
+            width=facecam_data['width'],
+            height=facecam_data['height'],
+            mode=facecam_data['mode']
+        )
 
-    # Validate gameplay
-    if 'gameplay' not in data:
-        print("ERROR: Missing 'gameplay' section in regions.json")
-        sys.exit(1)
-    gameplay_data = data['gameplay']
-    required_gameplay = ['x', 'y', 'width', 'height', 'mode']
-    for field in required_gameplay:
-        if field not in gameplay_data:
-            print(f"ERROR: Missing '{field}' in gameplay section of regions.json")
+    # Gameplay may be missing if gameplay_only exists (no‑facecam mode)
+    gameplay = None
+    if 'gameplay' in data and data['gameplay'] is not None:
+        gameplay_data = data['gameplay']
+        if not isinstance(gameplay_data, dict):
+            print(f"ERROR: 'gameplay' section must be a dictionary, got {type(gameplay_data)}")
             sys.exit(1)
-    gameplay = RegionConfig(
-        x=gameplay_data['x'],
-        y=gameplay_data['y'],
-        width=gameplay_data['width'],
-        height=gameplay_data['height'],
-        mode=gameplay_data['mode']
-    )
+        required_gameplay = ['x', 'y', 'width', 'height', 'mode']
+        for field in required_gameplay:
+            if field not in gameplay_data:
+                print(f"ERROR: Missing '{field}' in gameplay section of regions.json")
+                sys.exit(1)
+        gameplay = RegionConfig(
+            x=gameplay_data['x'],
+            y=gameplay_data['y'],
+            width=gameplay_data['width'],
+            height=gameplay_data['height'],
+            mode=gameplay_data['mode']
+        )
 
-    return ProjectConfig(target=target, facecam=facecam, gameplay=gameplay)
+    # Gameplay_only is optional
+    gameplay_only = None
+    if 'gameplay_only' in data and data['gameplay_only'] is not None:
+        gameplay_only_data = data['gameplay_only']
+        if isinstance(gameplay_only_data, dict):
+            gameplay_only = RegionConfig(
+                x=gameplay_only_data.get('x'),
+                y=gameplay_only_data.get('y'),
+                width=gameplay_only_data.get('width'),
+                height=gameplay_only_data.get('height'),
+                mode=gameplay_only_data.get('mode', 'fill')
+            )
+
+    return ProjectConfig(target=target, facecam=facecam, gameplay=gameplay, gameplay_only=gameplay_only)
 
 def run_with_args(args):
     video_path = Path(args.video)
@@ -168,7 +191,7 @@ def run_with_args(args):
 
     # ----- Output directory (create if not exists) -----
     base_output = Path(args.output_dir).expanduser().resolve()
-    game_output = ensure_dir(base_output)  # main output folder
+    game_output = ensure_dir(base_output)
     print(f"Final output will be saved to: {game_output}")
 
     # ----- Temporary working directory in current location -----
@@ -203,40 +226,94 @@ def run_with_args(args):
     # ----- Step 2: Region configuration -----
     regions_file = BINARY_DIR / "regions.json"
     config = None
+    old_config = None
 
     if regions_file.exists():
-        ans = input("regions.json found. Use existing regions? (y/n): ").strip().lower()
+        # Load the existing config (if any) to preserve its data, even if we don't use it for the current mode
+        old_config = validate_and_load_regions(regions_file)
+        ans = input("regions.json found. Use existing regions for this mode? (y/n): ").strip().lower()
         if ans == 'y':
-            try:
-                config = validate_and_load_regions(regions_file)
-                print("Loaded existing regions.json")
-            except Exception as e:
-                print(f"Error loading regions.json: {e}")
-                config = None
+            config = old_config
         else:
-            config = None
+            # Keep old_config for preserving other mode's data, but start fresh for current mode
+            pass
+    else:
+        # No existing file, start fresh
+        ans = 'n'  # will create new below
 
     if config is None:
-        print("Launching region selection GUI.")
+        # We need to create a config for the GUI.
+        # If we have an old_config, use its target and the other mode's sections,
+        # but set the current mode's region to None.
+        if old_config is not None:
+            # Start from old_config
+            config = ProjectConfig(
+                target=old_config.target,
+                facecam=old_config.facecam,
+                gameplay=old_config.gameplay,
+                gameplay_only=old_config.gameplay_only
+            )
+        else:
+            # No old config, create a fresh one with default target
+            default_target = TargetConfig(
+                width=1080,
+                height=1920,
+                facecam_height=768,
+                gameplay_height=1152
+            )
+            config = ProjectConfig(target=default_target, facecam=None, gameplay=None, gameplay_only=None)
+
+        # Now, for the current mode, we want to start with empty region(s)
+        if args.no_facecam:
+            # We are in no‑facecam mode: we want gameplay_only to be None so that we draw a new one.
+            # Keep facecam and gameplay as they were (from old_config or None).
+            config.gameplay_only = None
+        else:
+            # Normal mode: we want facecam and gameplay to be None so that we draw new ones.
+            # Keep gameplay_only as it was.
+            config.facecam = None
+            config.gameplay = None
+
+        print("Launching region selection GUI with existing other mode data preserved.")
         first_clip = clips_folder / "clip_000.mp4"
         if not first_clip.exists():
             print("No clip found for region selection. Exiting.")
             sys.exit(1)
-        selector = RegionSelector(str(first_clip), save_path=str(regions_file))
+
+        selector = RegionSelector(str(first_clip), config=config, save_path=str(regions_file), no_facecam=args.no_facecam)
         config = selector.run()
         if config is None:
             print("Region selection cancelled. Exiting.")
             sys.exit(1)
+
         print("Reloading regions from saved file...")
         config = validate_and_load_regions(regions_file)
+
+    # ----- Select the appropriate region set based on flag -----
+    if args.no_facecam:
+        # No‑facecam mode: use gameplay_only if available, otherwise fallback to gameplay (facecam ignored)
+        if config.gameplay_only is not None:
+            print("Using dedicated no‑facecam region (gameplay_only).")
+            config.facecam = None
+            config.gameplay = config.gameplay_only
+        else:
+            print("No dedicated no‑facecam region found. Using existing gameplay region (facecam will be ignored).")
+            config.facecam = None
+            # config.gameplay already set
+    else:
+        # Normal mode: require both facecam and gameplay
+        if config.facecam is None or config.gameplay is None:
+            print("ERROR: Normal mode requires both facecam and gameplay regions. Please run region selection again.")
+            sys.exit(1)
+        # gameplay_only is ignored
 
     # ----- Step 3: Composition -----
     composer = Composer(config)
     generated_shorts = composer.compose_all(input_paths=generated_clips, output_dir=str(shorts_folder))
 
-    # ----- Step 4: Transcription and SRT generation (auto device) -----
+    # ----- Step 4: Transcription and SRT generation (CPU only) -----
     if args.transcribe:
-        transcriber = Transcriber(model_size=args.model)  # device auto-detected
+        transcriber = Transcriber(model_size=args.model)
         transcriber.transcribe_all(videos_dir=str(shorts_folder), output_dir=str(captions_folder))
 
         caption_files = list(captions_folder.glob("*_captions.json"))
@@ -317,6 +394,7 @@ def main():
     parser.add_argument("--output-dir", "-o", default="./output", help="Base output directory (e.g., /mnt/c/Users/name/Desktop/twitch). Default: ./output")
     parser.add_argument("--transcribe", action="store_true", help="Run transcription and generate SRT subtitles")
     parser.add_argument("--model", default="base", help="Whisper model size (tiny/base/small/medium/large)")
+    parser.add_argument("--no-facecam", action="store_true", help="Use only gameplay region (no facecam), fill entire frame")
     args = parser.parse_args()
 
     run_with_args(args)

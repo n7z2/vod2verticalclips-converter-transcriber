@@ -3,9 +3,10 @@ import numpy as np
 from .config import ProjectConfig, RegionConfig, TargetConfig
 
 class RegionSelector:
-    def __init__(self, video_path: str, config: ProjectConfig = None, save_path: str = "regions.json"):
+    def __init__(self, video_path: str, config: ProjectConfig = None, save_path: str = "regions.json", no_facecam: bool = False):
         self.video_path = video_path
         self.save_path = save_path
+        self.no_facecam = no_facecam
 
         # If no config provided, create a new one with default target dimensions
         if config is None:
@@ -15,7 +16,7 @@ class RegionSelector:
                 facecam_height=768,
                 gameplay_height=1152
             )
-            self.config = ProjectConfig(target=default_target, facecam=None, gameplay=None)
+            self.config = ProjectConfig(target=default_target, facecam=None, gameplay=None, gameplay_only=None)
         else:
             self.config = config
             # If config has no target or target is None, set default target
@@ -29,7 +30,7 @@ class RegionSelector:
 
         self.frame = None
         self.display = None
-        self.mode = 'facecam'
+        self.mode = 'gameplay' if self.no_facecam else 'facecam'
         self.facecam_rect = None
         self.gameplay_rect = None
         self.drawing = False
@@ -39,8 +40,8 @@ class RegionSelector:
         self.selected_rect = None
         self.history = []
 
-        # Pre-populate from config if provided
-        if self.config.facecam and self.config.facecam.width is not None:
+        # Pre-populate from config based on mode
+        if not self.no_facecam and self.config.facecam and self.config.facecam.width is not None:
             self.facecam_rect = (
                 self.config.facecam.x,
                 self.config.facecam.y,
@@ -53,6 +54,14 @@ class RegionSelector:
                 self.config.gameplay.y,
                 self.config.gameplay.width,
                 self.config.gameplay.height
+            )
+        # For no‑facecam mode, also pre‑populate from gameplay_only if available
+        if self.no_facecam and self.config.gameplay_only and self.config.gameplay_only.width is not None:
+            self.gameplay_rect = (
+                self.config.gameplay_only.x,
+                self.config.gameplay_only.y,
+                self.config.gameplay_only.width,
+                self.config.gameplay_only.height
             )
 
     def push_history(self, mode, rect):
@@ -73,15 +82,22 @@ class RegionSelector:
         self.display = self.frame.copy()
         h, w = self.display.shape[:2]
 
-        inst = [
-            "f: Facecam   g: Gameplay   s: Save   q: Quit   Ctrl+Z: Undo",
-            "Click inside to move   Click edges to resize"
-        ]
+        # Instructions depend on mode
+        if self.no_facecam:
+            inst = [
+                "g: Gameplay   s: Save   q: Quit   Ctrl+Z: Undo",
+                "Click inside to move   Click edges to resize"
+            ]
+        else:
+            inst = [
+                "f: Facecam   g: Gameplay   s: Save   q: Quit   Ctrl+Z: Undo",
+                "Click inside to move   Click edges to resize"
+            ]
         for i, line in enumerate(inst):
             cv2.putText(self.display, line, (10, 30 + i*30),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
 
-        if self.facecam_rect:
+        if self.facecam_rect and not self.no_facecam:
             x, y, w, h = self.facecam_rect
             color = (255, 0, 0) if self.mode == 'facecam' else (128, 128, 255)
             cv2.rectangle(self.display, (x, y), (x+w, y+h), color, 2)
@@ -110,7 +126,7 @@ class RegionSelector:
 
     def get_rect_at(self, x, y):
         rects = []
-        if self.facecam_rect:
+        if self.facecam_rect and not self.no_facecam:
             rects.append(('facecam', self.facecam_rect))
         if self.gameplay_rect:
             rects.append(('gameplay', self.gameplay_rect))
@@ -155,7 +171,8 @@ class RegionSelector:
                 self.selected_rect = None
                 self.drag_start = (x, y)
                 self.drag_end = (x, y)
-                if self.mode == 'facecam' and self.facecam_rect:
+                # Save previous rect for undo if we're replacing it
+                if self.mode == 'facecam' and self.facecam_rect and not self.no_facecam:
                     self.push_history('facecam', self.facecam_rect)
                 elif self.mode == 'gameplay' and self.gameplay_rect:
                     self.push_history('gameplay', self.gameplay_rect)
@@ -201,7 +218,7 @@ class RegionSelector:
                 if new_rect[2] < 5: new_rect[2] = 5
                 if new_rect[3] < 5: new_rect[3] = 5
 
-                if self.mode == 'facecam':
+                if self.mode == 'facecam' and not self.no_facecam:
                     self.facecam_rect = tuple(new_rect)
                 else:
                     self.gameplay_rect = tuple(new_rect)
@@ -214,7 +231,7 @@ class RegionSelector:
                 x2, y2 = x, y
                 if abs(x2-x1) > 5 and abs(y2-y1) > 5:
                     rect = (min(x1,x2), min(y1,y2), abs(x2-x1), abs(y2-y1))
-                    if self.mode == 'facecam':
+                    if self.mode == 'facecam' and not self.no_facecam:
                         self.facecam_rect = rect
                     else:
                         self.gameplay_rect = rect
@@ -236,8 +253,12 @@ class RegionSelector:
         cv2.setMouseCallback("Select Regions", self.mouse_callback)
 
         print("\n=== Region Selection ===")
-        print("Press 'f' to switch to Facecam mode")
-        print("Press 'g' to switch to Gameplay mode")
+        if self.no_facecam:
+            print("No‑Facecam mode: draw gameplay rectangle only.")
+            print("Press 'g' to ensure you're in gameplay mode (it's the only mode).")
+        else:
+            print("Press 'f' to switch to Facecam mode")
+            print("Press 'g' to switch to Gameplay mode")
         print("Click and drag to draw new rectangle for current mode")
         print("Click inside a rectangle to move it")
         print("Click near an edge to resize")
@@ -248,18 +269,29 @@ class RegionSelector:
         while True:
             self.redraw_display()
             key = cv2.waitKey(50) & 0xFF
-            if key == ord('f'):
-                self.mode = 'facecam'
-                print("Mode: Facecam")
-            elif key == ord('g'):
-                self.mode = 'gameplay'
-                print("Mode: Gameplay")
-            elif key == 26:  # Ctrl+Z
+            if not self.no_facecam:
+                if key == ord('f'):
+                    self.mode = 'facecam'
+                    print("Mode: Facecam")
+                elif key == ord('g'):
+                    self.mode = 'gameplay'
+                    print("Mode: Gameplay")
+            else:
+                # In no‑facecam mode, pressing 'g' still switches to gameplay (only mode)
+                if key == ord('g'):
+                    self.mode = 'gameplay'
+                    print("Mode: Gameplay")
+            if key == 26:  # Ctrl+Z
                 self.undo()
             elif key == ord('s'):
-                if self.facecam_rect is None or self.gameplay_rect is None:
-                    print("Both regions must be defined before saving.")
-                    continue
+                if self.no_facecam:
+                    if self.gameplay_rect is None:
+                        print("Gameplay region must be defined before saving.")
+                        continue
+                else:
+                    if self.facecam_rect is None or self.gameplay_rect is None:
+                        print("Both regions must be defined before saving.")
+                        continue
 
                 # Ensure target is not None (set default if missing)
                 if self.config.target is None or self.config.target.width is None:
@@ -270,20 +302,29 @@ class RegionSelector:
                         gameplay_height=1152
                     )
 
-                # Preserve existing modes if present, otherwise default to 'fill'
-                facecam_mode = self.config.facecam.mode if self.config.facecam and self.config.facecam.mode else "fill"
-                gameplay_mode = self.config.gameplay.mode if self.config.gameplay and self.config.gameplay.mode else "fill"
+                if self.no_facecam:
+                    # Save to gameplay_only – do not modify target, facecam, or gameplay
+                    self.config.gameplay_only = RegionConfig(
+                        x=self.gameplay_rect[0], y=self.gameplay_rect[1],
+                        width=self.gameplay_rect[2], height=self.gameplay_rect[3],
+                        mode="fill"
+                    )
+                    # Leave facecam and gameplay untouched (they may still exist from previous normal mode)
+                else:
+                    # Save normal regions – preserve existing target and leave gameplay_only untouched
+                    facecam_mode = self.config.facecam.mode if self.config.facecam and self.config.facecam.mode else "fill"
+                    gameplay_mode = self.config.gameplay.mode if self.config.gameplay and self.config.gameplay.mode else "fill"
 
-                self.config.facecam = RegionConfig(
-                    x=self.facecam_rect[0], y=self.facecam_rect[1],
-                    width=self.facecam_rect[2], height=self.facecam_rect[3],
-                    mode=facecam_mode
-                )
-                self.config.gameplay = RegionConfig(
-                    x=self.gameplay_rect[0], y=self.gameplay_rect[1],
-                    width=self.gameplay_rect[2], height=self.gameplay_rect[3],
-                    mode=gameplay_mode
-                )
+                    self.config.facecam = RegionConfig(
+                        x=self.facecam_rect[0], y=self.facecam_rect[1],
+                        width=self.facecam_rect[2], height=self.facecam_rect[3],
+                        mode=facecam_mode
+                    )
+                    self.config.gameplay = RegionConfig(
+                        x=self.gameplay_rect[0], y=self.gameplay_rect[1],
+                        width=self.gameplay_rect[2], height=self.gameplay_rect[3],
+                        mode=gameplay_mode
+                    )
                 self.config.save(self.save_path)
                 print(f"Configuration saved to {self.save_path}")
                 break

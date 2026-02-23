@@ -1,4 +1,4 @@
-# 🎬 VOD to Short form content Pipeline
+# 🎬 VOD to Short form content tool
 
 <div align="center">
 
@@ -26,6 +26,7 @@ This tool automates the conversion of long VODs (videos on demand) into vertical
 - 📐 **Vertical composition** – Combine cropped regions into a 1080×1920 video (40% facecam / 60% gameplay by default).
 - 🎙️ **AI Transcription** – Generate word‑level captions with `faster-whisper` (choose from tiny to large models).
 - 📝 **SRT subtitle export** – Automatically creates `.srt` files when you use `--transcribe` – ready for DaVinci Resolve, Premiere, etc.
+- 🎮 **No‑Facecam mode** – Use `--no-facecam` to create videos with only the gameplay region, filling the entire frame.
 - 📁 **Organized output** – All files neatly placed in game‑named folders, with intermediate files cleaned up automatically.
 - 🐧 **Cross‑platform** – Works on Linux (including WSL2) and Windows (native .exe available).
 
@@ -109,6 +110,7 @@ The main script is main.py (or the compiled executable vod2shorts-linux / vod2sh
 | `--output-dir` | `-o` | Output directory, if ommited, will be saved in current directory of the application. Creates new folders if output folders does not exist.  |
 | `--transcribe` | | Run transcription and generate SRT subtitles |
 | `--model` | | Whisper model size: `tiny`, `base`, `small`, `medium`, `large` (default: `base`) |
+| `--no-facecam` | | Use only gameplay region (no facecam). The gameplay region fills the entire frame. Both layouts are stored separately in regions.json. |
 
 ---
 
@@ -137,6 +139,13 @@ The main script is main.py (or the compiled executable vod2shorts-linux / vod2sh
 ```bash
 ./vod2shorts-windows.exe Videos\cs2.mp4 -o gameclips\cs2 --transcribe --model base
 ```
+
+#### No‑facecam mode – gameplay only, fills entire frame
+
+```bash
+./vod2shorts-linux videos/cs2.mp4 -o gameclips/cs2 --transcribe --no-facecam
+```
+
 ---
 
 ## Region Selection GUI
@@ -150,7 +159,14 @@ The main script is main.py (or the compiled executable vod2shorts-linux / vod2sh
 - s – save and continue
 - q – quit without saving
 
-Coordinates and target dimensions are stored in `regions.json` (in the same folder as the binary/script).
+## No‑Facecam mode (with --no-facecam)
+
+- Only gameplay mode is available
+- Press g to ensure you're in gameplay mode
+- Draw a single rectangle for the gameplay region
+- The gameplay region will fill the entire 1080×1920 frame
+
+Coordinates and target dimensions are stored in regions.json (in the same folder as the binary). Both normal and no‑facecam layouts are stored separately – switching modes never overwrites the other configuration.
 
 ---
 

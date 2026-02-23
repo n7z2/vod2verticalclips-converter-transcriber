@@ -2,7 +2,7 @@
 
 import os
 from pathlib import Path
-from typing import List, Tuple
+from typing import List, Tuple, Optional
 from moviepy.editor import VideoFileClip, CompositeVideoClip, ColorClip
 from .config import ProjectConfig, RegionConfig
 
@@ -12,9 +12,11 @@ class Composer:
     def __init__(self, config: ProjectConfig):
         self.config = config
 
-    def crop_and_scale(self, clip: VideoFileClip, region: RegionConfig,
-                       target_size: Tuple[int, int]) -> VideoFileClip:
-        """Crop region and scale to target_size, preserving aspect ratio."""
+    def crop_and_scale(self, clip: VideoFileClip, region: Optional[RegionConfig],
+                       target_size: Tuple[int, int]) -> Optional[VideoFileClip]:
+        """Crop region and scale to target_size, preserving aspect ratio. If region is None, return None."""
+        if region is None:
+            return None
         if region.mode is None:
             raise ValueError(f"Region mode not specified for {region}")
 
@@ -46,34 +48,50 @@ class Composer:
 
     def compose_clip(self, input_path: Path, output_dir: Path) -> Path:
         """Process a single input clip and save the composed short. Returns output path."""
-        # Validate that region coordinates are complete
-        if None in (self.config.facecam.x, self.config.facecam.y, self.config.facecam.width, self.config.facecam.height):
-            raise ValueError("Facecam region coordinates are incomplete. Run region selection first.")
-        if None in (self.config.gameplay.x, self.config.gameplay.y, self.config.gameplay.width, self.config.gameplay.height):
+        # Validate that gameplay region is complete (required)
+        if None in (self.config.gameplay.x, self.config.gameplay.y,
+                    self.config.gameplay.width, self.config.gameplay.height):
             raise ValueError("Gameplay region coordinates are incomplete. Run region selection first.")
 
         print(f"Composing {input_path} ...")
         clip = VideoFileClip(str(input_path))
         target = self.config.target
-        if None in (target.width, target.height, target.facecam_height, target.gameplay_height):
+        if None in (target.width, target.height):
             raise ValueError("Target dimensions incomplete in config")
-        facecam_target = (target.width, target.facecam_height)
-        gameplay_target = (target.width, target.gameplay_height)
 
-        facecam = self.crop_and_scale(clip, self.config.facecam, facecam_target)
+        # Determine target sizes based on whether facecam is present
+        if self.config.facecam is None:
+            # No facecam: gameplay fills entire frame
+            gameplay_target = (target.width, target.height)
+            facecam = None
+        else:
+            # Normal mode: use stored split
+            if None in (target.facecam_height, target.gameplay_height):
+                raise ValueError("Target split incomplete in config")
+            facecam_target = (target.width, target.facecam_height)
+            gameplay_target = (target.width, target.gameplay_height)
+            facecam = self.crop_and_scale(clip, self.config.facecam, facecam_target)
+
         gameplay = self.crop_and_scale(clip, self.config.gameplay, gameplay_target)
 
-        final = CompositeVideoClip([
-            facecam.set_position(('center', 0)),
-            gameplay.set_position(('center', target.facecam_height))
-        ], size=(target.width, target.height))
+        if facecam is None:
+            # No facecam: just the gameplay clip (already scaled to full frame)
+            final = gameplay
+        else:
+            # Stack facecam on top, gameplay below
+            final = CompositeVideoClip([
+                facecam.set_position(('center', 0)),
+                gameplay.set_position(('center', target.facecam_height))
+            ], size=(target.width, target.height))
+
         final.audio = clip.audio
 
         out_path = output_dir / f"{input_path.stem}_short.mp4"
         final.write_videofile(str(out_path), codec='libx264', audio_codec='aac', preset='medium')
 
         clip.close()
-        facecam.close()
+        if facecam is not None:
+            facecam.close()
         gameplay.close()
         final.close()
         print(f"Saved {out_path}")
