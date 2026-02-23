@@ -51,10 +51,10 @@ Windows
 ```Powershell
 git clone https://github.com/n7z2/vod2shorts.git
 cd vod2shorts
-python -3.12 -m venv venv-312 # Use Python 3.12 for compatibility with installing dependencies 
+python -3.12 -m venv venv-312 # Use Python 3.12 which resolves dependency issues 
 venv\Scripts\activate.ps1
 pip install -r requirements.txt
-cd rebuild/windows && ./build.ps1
+cd rebuild\windows && ./build.ps1
 ```
 
 ## Usage
