@@ -129,19 +129,13 @@ The main script is main.py (or the compiled executable vod2shorts-linux / vod2sh
 #### Transcribe with a larger model for better accuracy
 
 ```bash
-./vod2shorts-linux videos/cs2.mp4 --transcribe --model large
-```
-
-#### Use GPU acceleration for faster transcription
-
-```bash
-./vod2shorts-linux videos/cs2.mp4 --transcribe --model medium --device cuda
+./vod2shorts-linux videos/cs2.mp4 -o gameclips/cs2 --transcribe --model large
 ```
 
 #### Using the pre‑compiled binary on Windows
 
 ```bash
-./vod2shorts-windows.exe D:\Videos\cs2.mp4 --game CS2 --transcribe --model base
+./vod2shorts-windows.exe Videos\cs2.mp4 -o gameclips\cs2 --transcribe --model base
 ```
 ---
 
