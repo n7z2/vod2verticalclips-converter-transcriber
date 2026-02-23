@@ -1,5 +1,3 @@
-
-
 <div align="center">
 
 # 🎬 VOD to Short form content tool
