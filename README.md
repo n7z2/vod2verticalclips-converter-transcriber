@@ -16,7 +16,7 @@
 </div>
 ---
  
-## 🖱️ Tutorial
+## 🖱️ Youtube Tutorial
 
 [![Watch the video](https://img.youtube.com/vi/NzAe56o0Cc4/hqdefault.jpg)](https://youtu.be/NzAe56o0Cc4)
 
