@@ -32,32 +32,6 @@ This tool automates the conversion of long VODs (videos on demand) into vertical
 
 ---
 
-## 🚀 From source (for developers)
-
-If you make any code changes you can rebuild the binaries using the windows/linux script in the rebuild folder, the new binary will be located in the dist folder.
-
-Linux
-
-```bash
-git clone https://github.com/n7z2/vod2shorts.git
-cd vod2shorts
-python -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
-cd rebuild/linux && ./build.sh
-```
-
-Windows
-
-```Powershell
-git clone https://github.com/n7z2/vod2shorts.git
-cd vod2shorts
-python -3.12 -m venv venv-312 # Use Python 3.12 which resolves dependency issues 
-venv\Scripts\activate.ps1
-pip install -r requirements.txt
-cd rebuild\windows && ./build.ps1
-```
-
 ## Usage
 
 This guide explains the step‑by‑step process of converting a long VOD into vertical YouTube Shorts. The pipeline handles everything from cutting segments to generating subtitles.
@@ -205,6 +179,32 @@ Download and install  [cuDNN for CUDA 12](https://developer.nvidia.com/cuda-down
 - On Linux, you can install the required libraries via pip (see [faster-whisper docs](https://github.com/guillaumekln/faster-whisper)).
 
 ---
+
+## 🚀 From source (for developers)
+
+If you make any code changes you can rebuild the binaries using the windows/linux script in the rebuild folder, the new binary will be located in the dist folder.
+
+Linux
+
+```bash
+git clone https://github.com/n7z2/vod2shorts.git
+cd vod2shorts
+python -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+cd rebuild/linux && ./build.sh
+```
+
+Windows
+
+```Powershell
+git clone https://github.com/n7z2/vod2shorts.git
+cd vod2shorts
+python -3.12 -m venv venv-312 # Use Python 3.12 which resolves dependency issues 
+venv\Scripts\activate.ps1
+pip install -r requirements.txt
+cd rebuild\windows && ./build.ps1
+```
 
 ## Notes
 
