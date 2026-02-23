@@ -4,7 +4,7 @@
 
 [![GitHub stars](https://img.shields.io/github/stars/n7z2/vod2verticalclips-converter-transcriber?style=social)](https://github.com/n7z2/vod2verticalclips-converter-transcriber/stargazers)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Python](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
+[![Python](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
 [![Donate - Buy me coffee](https://img.shields.io/badge/donate-buy%20me%20coffee-maroon?labelColor=grey)](https://buymeacoffee.com/n7z2)
 
 
