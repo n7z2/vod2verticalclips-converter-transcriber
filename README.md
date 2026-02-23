@@ -1,6 +1,8 @@
-# 🎬 VOD to Short form content tool
+
 
 <div align="center">
+
+# 🎬 VOD to Short form content tool
 
 [![GitHub stars](https://img.shields.io/github/stars/n7z2/vod2verticalclips-converter-transcriber?style=social)](https://github.com/n7z2/vod2verticalclips-converter-transcriber/stargazers)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
