@@ -93,8 +93,8 @@ If you omit this file, the whole video will be treated as a single clip.
 
 The main script is main.py (or the compiled executable vod2shorts-linux / vod2shorts-windows.exe). It will:
 
-1. Cut the VOD into clips according to your timestamps (or use the whole video).
-2. Let you define the facecam and gameplay regions once prompted, if not press "y" and enter to use existing values in the regions.json file.
+1. Cut the VOD into clips according to your timestamps (or use the whole video), these spliced VOD clips are saved in a seperate folder.
+2. Let you define the facecam and gameplay regions once prompted or just the gameplay section if --no-facecam flag is used, if not press "y" and enter to use existing values in the regions.json file.
 3. If "n" is selected then the Region Selection GUI will appear, allowing you to define the facecam and gameplay region, changes will be saved to the regions.json file.
 3. Compose each clip into a vertical 1080×1920 short.
 4. Optionally transcribe the audio and generate the .srt subtitle files.
@@ -208,15 +208,10 @@ Download and install  [cuDNN for CUDA 12](https://developer.nvidia.com/cuda-down
 
 ## Notes
 
-- **Windows paths in WSL:** Use /mnt/c/Users/User/Desktop/... to access your Windows desktop.
-
-- **Transcription speed:** Use --device cuda if you have an NVIDIA GPU and CUDA installed for much faster processing.
-
-### Windows & WSL Notes
-
+- Use /mnt/c/Users/User/Desktop/... to access your Windows desktop.
 - To access your Windows files from WSL2, use paths like `/mnt/c/Users/YourName/Desktop/...`
 - For native Windows builds, download the `.exe` from Releases – no Python or WSL required.
-- The region selection GUI uses OpenCV; on Windows it will work out of the box. In WSL2, ensure you have an X server (like VcXsrv) or use WSLg (Windows 11).
+- The region selection GUI uses OpenCV; on Windows it will work out of the box. In WSL2, ensure you have an X server (like VcXsrv).
 
 ---
 
