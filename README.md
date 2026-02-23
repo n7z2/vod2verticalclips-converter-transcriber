@@ -51,7 +51,7 @@ Windows
 ```Powershell
 git clone https://github.com/n7z2/vod2shorts.git
 cd vod2shorts
-python -m venv venv
+python -3.12 -m venv venv-312 # Use Python 3.12 for compatibility with installing dependencies 
 venv\Scripts\activate.ps1
 pip install -r requirements.txt
 cd rebuild/windows && ./build.ps1
@@ -106,7 +106,7 @@ The main script is main.py (or the compiled executable vod2shorts-linux / vod2sh
 |------|-------|-------------|
 | `--timestamps` | `-t` | Path to timestamps file (default: `timestamps.txt`) |
 | `--skip-cutting` | | Skip segmentation; use the whole video as one clip |
-| `--output-dir` | `-o` | Base output directory (e.g. `/mnt/c/Users/name/Desktop/twitch`). Default: `./output` |
+| `--output-dir` | `-o` | Output directory, if ommited, will be saved in current directory of the application. Creates new folders if output folders does not exist.  |
 | `--transcribe` | | Run transcription and generate SRT subtitles |
 | `--model` | | Whisper model size: `tiny`, `base`, `small`, `medium`, `large` (default: `base`) |
 
@@ -114,28 +114,28 @@ The main script is main.py (or the compiled executable vod2shorts-linux / vod2sh
 
 ## Example Commands
 
-#### Basic – cut with timestamps and save to local folder
+#### Basic – cut with timestamps and save in the same directory
 
 ```bash
-./vod2shorts-linux videos/cs2.mp4 --game CS2
+./vod2shorts-linux videos/cs2.mp4
 ```
 
 #### Use whole video, save to Windows folder from WSL2, add transcription (SRT automatically generated)
 
 ```bash
-./vod2shorts-linux videos/cs2.mp4 --skip-cutting --game CS2 --output-dir /mnt/c/Users/User/Desktop/twitch --transcribe
+./vod2shorts-linux videos/cs2.mp4 --skip-cutting -o /mnt/c/Users/User/Desktop/twitch --transcribe
 ```
 
 #### Transcribe with a larger model for better accuracy
 
 ```bash
-./vod2shorts-linux videos/cs2.mp4 --game CS2 --transcribe --model large
+./vod2shorts-linux videos/cs2.mp4 --transcribe --model large
 ```
 
 #### Use GPU acceleration for faster transcription
 
 ```bash
-./vod2shorts-linux videos/cs2.mp4 --game CS2 --transcribe --model medium --device cuda
+./vod2shorts-linux videos/cs2.mp4 --transcribe --model medium --device cuda
 ```
 
 #### Using the pre‑compiled binary on Windows

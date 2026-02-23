@@ -1,12 +1,32 @@
 import cv2
 import numpy as np
-from .config import ProjectConfig, RegionConfig
+from .config import ProjectConfig, RegionConfig, TargetConfig
 
 class RegionSelector:
     def __init__(self, video_path: str, config: ProjectConfig = None, save_path: str = "regions.json"):
         self.video_path = video_path
-        self.config = config or ProjectConfig()  # No video_path argument
         self.save_path = save_path
+
+        # If no config provided, create a new one with default target dimensions
+        if config is None:
+            default_target = TargetConfig(
+                width=1080,
+                height=1920,
+                facecam_height=768,
+                gameplay_height=1152
+            )
+            self.config = ProjectConfig(target=default_target, facecam=None, gameplay=None)
+        else:
+            self.config = config
+            # If config has no target or target is None, set default target
+            if self.config.target is None or self.config.target.width is None:
+                self.config.target = TargetConfig(
+                    width=1080,
+                    height=1920,
+                    facecam_height=768,
+                    gameplay_height=1152
+                )
+
         self.frame = None
         self.display = None
         self.mode = 'facecam'
@@ -20,19 +40,19 @@ class RegionSelector:
         self.history = []
 
         # Pre-populate from config if provided
-        if config and config.facecam and config.facecam.width is not None:
+        if self.config.facecam and self.config.facecam.width is not None:
             self.facecam_rect = (
-                config.facecam.x,
-                config.facecam.y,
-                config.facecam.width,
-                config.facecam.height
+                self.config.facecam.x,
+                self.config.facecam.y,
+                self.config.facecam.width,
+                self.config.facecam.height
             )
-        if config and config.gameplay and config.gameplay.width is not None:
+        if self.config.gameplay and self.config.gameplay.width is not None:
             self.gameplay_rect = (
-                config.gameplay.x,
-                config.gameplay.y,
-                config.gameplay.width,
-                config.gameplay.height
+                self.config.gameplay.x,
+                self.config.gameplay.y,
+                self.config.gameplay.width,
+                self.config.gameplay.height
             )
 
     def push_history(self, mode, rect):
@@ -240,6 +260,16 @@ class RegionSelector:
                 if self.facecam_rect is None or self.gameplay_rect is None:
                     print("Both regions must be defined before saving.")
                     continue
+
+                # Ensure target is not None (set default if missing)
+                if self.config.target is None or self.config.target.width is None:
+                    self.config.target = TargetConfig(
+                        width=1080,
+                        height=1920,
+                        facecam_height=768,
+                        gameplay_height=1152
+                    )
+
                 # Preserve existing modes if present, otherwise default to 'fill'
                 facecam_mode = self.config.facecam.mode if self.config.facecam and self.config.facecam.mode else "fill"
                 gameplay_mode = self.config.gameplay.mode if self.config.gameplay and self.config.gameplay.mode else "fill"
