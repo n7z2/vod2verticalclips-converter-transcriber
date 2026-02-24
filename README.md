@@ -18,7 +18,7 @@
  
 ## 🖱️ Youtube Tutorial
 
-coming soon
+[![Watch the video](https://img.youtube.com/vi/pmuFg-KdGT4/hqdefault.jpg)](https://youtu.be/pmuFg-KdGT4)
 
 ---
 
